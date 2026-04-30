@@ -836,7 +836,7 @@ wheels = [
 ]
 
 [[package]]
-name = "stressnet-tests"
+name = "stressnet"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -1,7 +1,7 @@
 [project]
-name = "stressnet-tests"
+name = "stressnet"
 version = "0.1.0"
-description = "Add your description here"
+description = "Fine-tuning CNN for Mechanical Stress Prediction"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
