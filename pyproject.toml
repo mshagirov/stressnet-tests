@@ -1,0 +1,12 @@
+[project]
+name = "stressnet-tests"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "matplotlib==3.10.7",
+    "pandas==2.3.3",
+    "torch==2.3.1",
+    "torchvision==0.18.1",
+]
