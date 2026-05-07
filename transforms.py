@@ -38,7 +38,7 @@ class TargetNormalise:
         stiffness_TF = TargetNormalise(4.5, 15.0)
         y_norm = stiffness_TF(y)
     '''
-    def __init__(self, offset=0, scale=1):
+    def __init__(self, offset:float=0, scale:float=1):
         self.offset = offset
         self.scale = scale
     
@@ -60,3 +60,9 @@ class TargetLog:
         return math.log(x)
     def __repr__(self):
         return f'{self.__class__.__name__}()'
+
+stiffness_transform = transforms.Compose([
+    TargetLog(),
+    TargetNormalise(offset=1.85, scale=3.0)
+])
+

@@ -22,8 +22,8 @@ def read_16uint_tiff(img_path:Path|str, scale_with_percentile:None|float=None):
 
 class StiffnessDataset(Dataset):
     def __init__(self,
-                 annotations_file,
-                 root_dir,
+                 annotations_file:str,
+                 root_dir:Path|str,
                  ch_names=('Nucleus', 'Collagen'),
                  ch_dir_suffix='',
                  ch_name_prefix=('C1-','C2-'),

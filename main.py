@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 
 from models import resnet18
 from dataset import ValidationDataset
-from transforms import data_transforms_inference
+from transforms import data_transforms_inference, stiffness_transform
 
 def main():
     if torch.cuda.is_available():
@@ -24,8 +24,6 @@ def main():
     model_ft = resnet18(WEIGHTS_PATH)
     model_ft.eval();
 
-    # input shape: [N_EXAMPLES, 3, 224, 224]
-
     if not model_ft.training:
         print(f'Model ({model_name}) is in evaluation mode')
 
@@ -37,7 +35,7 @@ def main():
     dataloaders["train"] = DataLoader(
             ValidationDataset(TRAIN_LABELS, TRAIN_ROOT, ch_dir_suffix="_Train",
                               transform=data_transforms_inference,
-                              target_transform=None),
+                              target_transform=stiffness_transform),
             batch_size=batch_size, shuffle=False, num_workers=2)
     
     VAL_ROOT   = Path("../faris_cnn/Faris_Data_for_ML_v3/Prediction_Data")
@@ -45,17 +43,19 @@ def main():
     dataloaders["val"] = DataLoader(
             ValidationDataset(VAL_LABELS, VAL_ROOT, ch_dir_suffix="_Prediction",
                               transform=data_transforms_inference,
-                              target_transform=None), 
+                              target_transform=stiffness_transform), 
             batch_size=batch_size, shuffle=False, num_workers=1)
 
-
-    for phase in ("train", "val"):
-        loader = dataloaders[phase]
-        for x, y, fname in loader:
-            print(x.size())
-            print(y)
-            print(fname)
-            break
+    with torch.inference_mode():
+        for phase in ("train", "val"):
+            loader = dataloaders[phase]
+            for x, y, fname in loader:
+                print(x.size())
+                print(y )
+                y_pred = model_ft(x.to(device)).cpu().numpy()
+                print(f"{y_pred=}")
+                print(fname)
+                break
 
 
 if __name__ == "__main__":
