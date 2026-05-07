@@ -1,6 +1,15 @@
+from pathlib import Path
+
+import torch
+from torchvision import models
 from torch import nn
 
-def fc_layers(in_features, out_features=1, hidden_layers=[], p=0):
+if torch.cuda.is_available():
+    TORCH_DEVICE = torch.device("cuda")
+else:
+    TORCH_DEVICE = torch.device("cpu")
+
+def fc_layers(in_features:int, out_features=1, hidden_layers=[], p=0):
     '''
     in_features : number of input features to the fully-connected layers
     hidden_layers: list of int that represent number of neurons in hiddenr
@@ -22,4 +31,14 @@ def fc_layers(in_features, out_features=1, hidden_layers=[], p=0):
         fc_net.append( nn.Linear( in_features, out_features))
     return nn.Sequential(*fc_net)
 
+
+def resnet18(weights:str|Path, device:torch.device = TORCH_DEVICE):
+    model_ft = models.resnet18()
+    num_ftrs = model_ft.fc.in_features
+    model_ft.fc = fc_layers(num_ftrs, hidden_layers=[])
+
+    model_ft.load_state_dict(
+        torch.load(weights, weights_only=True, map_location=torch.device(device))
+    )
+    return model_ft
 
