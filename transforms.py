@@ -28,6 +28,8 @@ data_transforms = {
     ]),
 }
 
+data_transforms_inference = data_transforms['val']
+
 # transforms for y_tgt
 class TargetNormalise:
     '''Transform input `x`: normalise(x) = (x - offset)/scale

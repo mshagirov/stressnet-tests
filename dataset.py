@@ -6,7 +6,7 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
-def read_16uint_tiff(img_path, scale_with_percentile=None):
+def read_16uint_tiff(img_path:Path|str, scale_with_percentile:None|float=None):
     img = Image.open(img_path)
     
     img_np = np.array(img, dtype=np.float32)/65535
@@ -18,6 +18,7 @@ def read_16uint_tiff(img_path, scale_with_percentile=None):
     img_tensor = torch.from_numpy(img_np)
     
     return img_tensor
+
 
 class StiffnessDataset(Dataset):
     def __init__(self,
@@ -46,8 +47,8 @@ class StiffnessDataset(Dataset):
                 s = s.removeprefix(prefix)
             return s
         
-        root_path = Path(root_dir)
-        assert (root_dir/annotations_file).exists(), f"Could not find the {root_dir/labels_file}"
+        root_dir = Path(root_dir)
+        assert (root_dir/annotations_file).exists(), f"Could not find the {(root_dir/annotations_file)}"
         
         labels_df = pd.read_excel(root_dir/annotations_file)
         labels_df['Image'] = labels_df['Image'].apply(remove_ch_prefix)
@@ -95,4 +96,29 @@ class StiffnessDataset(Dataset):
         if self.target_transform:
             stiffness = self.target_transform(stiffness)
         return image, torch.tensor([stiffness], dtype=torch.float32)
-    
+
+
+class ValidationDataset(StiffnessDataset):
+    def __getitem__(self, idx):
+        sample_ch1_name = str(self.img_labels.iloc[idx, 1])
+        stiffness = self.img_labels.iloc[idx, 0]
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+        
+        images.append(torch.zeros_like(images[0]))
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32), sample_ch1_name
