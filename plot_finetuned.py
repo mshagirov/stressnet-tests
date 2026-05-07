@@ -23,10 +23,9 @@ def main():
     print(f"Using {device} device")
 
     # Weights
-    model_name = "resnet18_2_v3_fc_"
+    model_name = 'resnet18_2_v3_fc_'
     MODEL_ROOT = Path('../faris_cnn/saved_models') / model_name
-    WEIGHTS_PATH = MODEL_ROOT / (model_name + "_30epochWarmup.pt")
-
+    WEIGHTS_PATH = MODEL_ROOT / (model_name + '_1000epochFinetune_Adam.pt')
     if not WEIGHTS_PATH.exists():
         raise ValueError(f"Can't find:\n  {WEIGHTS_PATH}")
 
