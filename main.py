@@ -2,7 +2,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from models import resnet18
+from models import resnet18, get_predict_func
 from dataset import ValidationDataset
 from transforms import data_transforms_inference, stiffness_transform
 
@@ -44,19 +44,16 @@ def main():
             ValidationDataset(VAL_LABELS, VAL_ROOT, ch_dir_suffix="_Prediction",
                               transform=data_transforms_inference,
                               target_transform=stiffness_transform), 
-            batch_size=batch_size, shuffle=False, num_workers=1)
+            batch_size=batch_size, shuffle=False, num_workers=1) 
+    
+    predict = get_predict_func(model_ft, device=torch.device(device))
 
-    with torch.inference_mode():
-        for phase in ("train", "val"):
-            loader = dataloaders[phase]
-            for x, y, fname in loader:
-                print(x.size())
-                print(y )
-                y_pred = model_ft(x.to(device)).cpu().numpy()
-                print(f"{y_pred=}")
-                print(fname)
-                break
-
+    for phase in ("train", "val"):
+        print(f"{phase=}")
+        loader = dataloaders[phase]
+        for x, y, fname in loader:
+            y_pred = predict(x).cpu().numpy()
+            break
 
 if __name__ == "__main__":
     main()
