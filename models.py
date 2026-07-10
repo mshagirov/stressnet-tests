@@ -21,9 +21,15 @@ def get_predict_func(m:nn.Module, device:torch.device=TORCH_DEVICE):
 
 def fc_layers(in_features:int, out_features=1, hidden_layers=[], p=0) -> nn.Module:
     '''
-    in_features : number of input features to the fully-connected layers
-    hidden_layers: list of int that represent number of neurons in hiddenr
-    layers
+    Generates and returns a torch.nn.Sequential Module (Neural Net) with fully-connected layers
+    
+    in_features  : number of input features to the fully-connected layers
+    hidden_layers: list of int that represent number of neurons in hidden
+                   layers
+
+    For a single fully-connected layer use Linear(in_features, out_features) from torch.nn, e.g.:
+
+        fc = nn.Linear(in_features, out_features)
     '''
     fc_net = []
     max_h_idx = len(hidden_layers) - 1 
@@ -41,8 +47,25 @@ def fc_layers(in_features:int, out_features=1, hidden_layers=[], p=0) -> nn.Modu
         fc_net.append( nn.Linear( in_features, out_features))
     return nn.Sequential(*fc_net)
 
-
 def resnet18(weights:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
+    '''
+    The last FC-layers consist of torch.nn.nn.Linear Module 
+    '''
+    
+    model_ft = models.resnet18()
+    num_ftrs = model_ft.fc.in_features
+    model_ft.fc = nn.Linear(num_ftrs, 1)
+    
+    model_ft.load_state_dict(
+        torch.load(weights, weights_only=True, map_location=torch.device(device))
+    )
+    return model_ft
+
+def resnet18_seq(weights:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
+    '''
+    The last FC-layers consist of torch.nn.Sequential Module from fc_layers() function above
+    '''
+    
     model_ft = models.resnet18()
     num_ftrs = model_ft.fc.in_features
     model_ft.fc = fc_layers(num_ftrs, hidden_layers=[])
