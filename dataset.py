@@ -61,7 +61,7 @@ class StiffnessDataset(Dataset):
         cols = ['Stiffness']
 
         cols.extend(ch_names)
-        self.img_channels = ch_names
+        self.img_channels = list(ch_names)
         self.img_labels = labels_df[cols]
         
         self.img_dirs = tuple([root_dir/(ch_k + ch_dir_suffix) for ch_k in ch_names])
