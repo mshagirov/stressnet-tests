@@ -44,7 +44,9 @@ class StiffnessDataset(Dataset):
         '''
         def remove_ch_prefix(s):
             for prefix in ch_name_prefix:
-                s = s.removeprefix(prefix)
+                if s.startswith(prefix):
+                    s = s.removeprefix(prefix)
+                    break
             return s
         
         root_dir = Path(root_dir)
@@ -76,7 +78,7 @@ class StiffnessDataset(Dataset):
         return len(self.img_labels)
 
     def __getitem__(self, idx):
-        stiffness = self.img_labels.iloc[idx, 0]
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
         
         img_names = [
             img_dir/k 
@@ -101,7 +103,8 @@ class StiffnessDataset(Dataset):
 class ValidationDataset(StiffnessDataset):
     def __getitem__(self, idx):
         sample_ch1_name = str(self.img_labels.iloc[idx, 1])
-        stiffness = self.img_labels.iloc[idx, 0]
+        #stiffness = self.img_labels.iloc[idx, 0]
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
         
         img_names = [
             img_dir/k 
@@ -114,6 +117,66 @@ class ValidationDataset(StiffnessDataset):
         ]
         
         images.append(torch.zeros_like(images[0]))
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32), sample_ch1_name
+
+
+class StiffnessDatasetAge(StiffnessDataset):
+    def __getitem__(self, idx):
+        sample_ch1_name = str(self.img_labels.iloc[idx, 1])
+        #stiffness = self.img_labels.iloc[idx, 0]
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+
+        if (img_names[0].name)[3] == 'Y':
+            images.append(torch.zeros_like(images[0]))
+        else:
+            images.append(torch.zeros_like(images[0]) + 1.0)
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32)
+
+
+class ValidationDatasetAge(StiffnessDataset):
+    def __getitem__(self, idx):
+        sample_ch1_name = str(self.img_labels.iloc[idx, 1])
+        #stiffness = self.img_labels.iloc[idx, 0]
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+        
+        if (img_names[0].name)[3] == 'Y':
+            images.append(torch.zeros_like(images[0]))
+        else:
+            images.append(torch.zeros_like(images[0]) + 1.0)
         
         image = torch.cat(images) 
         if self.transform:

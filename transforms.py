@@ -66,3 +66,11 @@ stiffness_transform = transforms.Compose([
     TargetNormalise(offset=1.85, scale=3.0)
 ])
 
+stiffness_norm_v1 = transforms.Compose([
+    TargetLog(),
+    TargetNormalise(offset=1.85, scale=3.0)
+])
+
+stiffness_norm_v2 = transforms.Compose([
+    TargetNormalise(offset=0.0, scale=25.0)
+])
