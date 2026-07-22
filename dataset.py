@@ -77,6 +77,8 @@ class StiffnessDataset(Dataset):
 
         cols.extend(['Group', 'Location'])
         self.img_labels = labels_df[cols]
+
+        self.num_age_loc_cat = 5 # maximum value for Age x Location category 
         
         self.img_dirs = tuple([root_dir/(ch_k + ch_dir_suffix) for ch_k in ch_names])
         self.transform = transform
@@ -192,6 +194,62 @@ class ValidationDatasetAge(StiffnessDataset):
             images.append(torch.zeros_like(images[0]))
         else:
             images.append(torch.zeros_like(images[0]) + 1.0)
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32), sample_ch1_name
+
+class StiffnessDatasetAgeLoc(StiffnessDataset):
+    def __getitem__(self, idx):
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+        
+        age = self.img_labels['Group'].iloc[idx]
+        age_loc_val = self.img_labels['Location'].iloc[idx] + (age == 'A')*3
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+
+        images.append(torch.zeros_like(images[0]) + age_loc_val/self.num_age_loc_cat)
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32)
+
+
+class ValidationDatasetAgeLoc(StiffnessDataset):
+    def __getitem__(self, idx):
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+
+        age = self.img_labels['Group'].iloc[idx]
+        age_loc_val = self.img_labels['Location'].iloc[idx] + (age == 'A')*3
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+        
+        images.append(torch.zeros_like(images[0]) + age_loc_val/self.num_age_loc_cat)
         
         image = torch.cat(images) 
         if self.transform:
