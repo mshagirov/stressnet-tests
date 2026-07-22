@@ -49,19 +49,33 @@ class StiffnessDataset(Dataset):
                     break
             return s
         
+        def extract_location(s):
+            stem = s.split('_')[0]
+            if stem.endswith('LV'):
+                return 0
+            if stem.endswith('IVS'):
+                return 1
+            if stem.endswith('RV'):
+                return 2
+
         root_dir = Path(root_dir)
         assert (root_dir/annotations_file).exists(), f"Could not find the {(root_dir/annotations_file)}"
         
         labels_df = pd.read_excel(root_dir/annotations_file)
         labels_df['Image'] = labels_df['Image'].apply(remove_ch_prefix)
+        labels_df['Location'] =  labels_df['Image'].apply(extract_location)
         
         for ch, prefix in zip(ch_names,ch_name_prefix):
             labels_df[ch] = labels_df['Image'].apply(lambda x: prefix + x +'.tif')
-            
+        
+
+
         cols = ['Stiffness']
 
         cols.extend(ch_names)
         self.img_channels = list(ch_names)
+
+        cols.extend(['Group', 'Location'])
         self.img_labels = labels_df[cols]
         
         self.img_dirs = tuple([root_dir/(ch_k + ch_dir_suffix) for ch_k in ch_names])
@@ -132,6 +146,7 @@ class StiffnessDatasetAge(StiffnessDataset):
     def __getitem__(self, idx):
         #sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
         stiffness = self.img_labels['Stiffness'].iloc[idx]
+        age = self.img_labels['Group'].iloc[idx]
         
         img_names = [
             img_dir/k 
@@ -143,7 +158,7 @@ class StiffnessDatasetAge(StiffnessDataset):
             for img_name  in img_names
         ]
 
-        if (img_names[0].name)[3] == 'Y':
+        if age.lower() == 'Y':
             images.append(torch.zeros_like(images[0]))
         else:
             images.append(torch.zeros_like(images[0]) + 1.0)
@@ -161,6 +176,7 @@ class ValidationDatasetAge(StiffnessDataset):
     def __getitem__(self, idx):
         sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
         stiffness = self.img_labels['Stiffness'].iloc[idx]
+        age = self.img_labels['Group'].iloc[idx]
         
         img_names = [
             img_dir/k 
@@ -172,7 +188,7 @@ class ValidationDatasetAge(StiffnessDataset):
             for img_name  in img_names
         ]
         
-        if (img_names[0].name)[3] == 'Y':
+        if age.lower() == 'Y':
             images.append(torch.zeros_like(images[0]))
         else:
             images.append(torch.zeros_like(images[0]) + 1.0)
