@@ -158,7 +158,7 @@ class StiffnessDatasetAge(StiffnessDataset):
             for img_name  in img_names
         ]
 
-        if age.lower() == 'Y':
+        if age == 'Y':
             images.append(torch.zeros_like(images[0]))
         else:
             images.append(torch.zeros_like(images[0]) + 1.0)
@@ -188,7 +188,7 @@ class ValidationDatasetAge(StiffnessDataset):
             for img_name  in img_names
         ]
         
-        if age.lower() == 'Y':
+        if age == 'Y':
             images.append(torch.zeros_like(images[0]))
         else:
             images.append(torch.zeros_like(images[0]) + 1.0)
