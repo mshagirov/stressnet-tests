@@ -59,7 +59,9 @@ class StiffnessDataset(Dataset):
             labels_df[ch] = labels_df['Image'].apply(lambda x: prefix + x +'.tif')
             
         cols = ['Stiffness']
+
         cols.extend(ch_names)
+        self.img_channels = ch_names
         self.img_labels = labels_df[cols]
         
         self.img_dirs = tuple([root_dir/(ch_k + ch_dir_suffix) for ch_k in ch_names])
@@ -82,7 +84,7 @@ class StiffnessDataset(Dataset):
         
         img_names = [
             img_dir/k 
-            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
         ]
         
         images = [
@@ -102,13 +104,12 @@ class StiffnessDataset(Dataset):
 
 class ValidationDataset(StiffnessDataset):
     def __getitem__(self, idx):
-        sample_ch1_name = str(self.img_labels.iloc[idx, 1])
-        #stiffness = self.img_labels.iloc[idx, 0]
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
         stiffness = self.img_labels['Stiffness'].iloc[idx]
         
         img_names = [
             img_dir/k 
-            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
         ]
         
         images = [
@@ -129,13 +130,12 @@ class ValidationDataset(StiffnessDataset):
 
 class StiffnessDatasetAge(StiffnessDataset):
     def __getitem__(self, idx):
-        sample_ch1_name = str(self.img_labels.iloc[idx, 1])
-        #stiffness = self.img_labels.iloc[idx, 0]
+        #sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
         stiffness = self.img_labels['Stiffness'].iloc[idx]
         
         img_names = [
             img_dir/k 
-            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
         ]
         
         images = [
@@ -159,13 +159,12 @@ class StiffnessDatasetAge(StiffnessDataset):
 
 class ValidationDatasetAge(StiffnessDataset):
     def __getitem__(self, idx):
-        sample_ch1_name = str(self.img_labels.iloc[idx, 1])
-        #stiffness = self.img_labels.iloc[idx, 0]
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
         stiffness = self.img_labels['Stiffness'].iloc[idx]
         
         img_names = [
             img_dir/k 
-            for img_dir,k in zip(self.img_dirs, self.img_labels.iloc[idx, 1:])
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
         ]
         
         images = [
