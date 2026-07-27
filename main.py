@@ -1,13 +1,16 @@
-import sys
 import argparse
 from pathlib import Path
+import sys
+
+import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from models import resnet18, get_predict_func
 from dataset import ValidationDatasetAgeLoc
-from transforms import data_transforms_inference, stiffness_transform
+from models import get_predict_func, resnet18
 from plots import plot_scatter
+from transforms import data_transforms_inference, stiffness_transform
 
 
 def parse_args(args):
@@ -41,7 +44,7 @@ def main():
     if not WEIGHTS_PATH.exists():
         raise ValueError(f"Can't find:\n  {WEIGHTS_PATH}")
 
-    model_ft = resnet18(WEIGHTS_PATH)
+    model_ft = resnet18(WEIGHTS_PATH).to(device)
     model_ft.eval();
 
     if not model_ft.training:
@@ -69,7 +72,13 @@ def main():
         y_tgt.append(y.cpu().numpy())
         y_pred.append(predict(x).cpu().numpy())
 
+    y_tgt = np.concatenate(y_tgt).ravel()
+    y_pred = np.concatenate(y_pred).ravel()
+
     plot_scatter(y_tgt, y_pred, x_names, args.phase, save_dir/model_name)
+
+    df = pd.DataFrame({"Image": x_names, "Ytgt": y_tgt, "Ypred": y_pred })
+    df.to_csv(save_dir/model_name/f'{args.phase}_preds.csv', index=False)
 
 if __name__ == "__main__":
     main()

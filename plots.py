@@ -6,8 +6,6 @@ import plotly.graph_objects as go
 
 def plot_scatter(y_tgt, y_pred, x_names, phase, save_dir):
     plot_title = {'train': 'Training Data', 'val': 'Validation/Test data'}[phase]
-    y_tgt = np.concatenate(y_tgt).ravel()
-    y_pred = np.concatenate(y_pred).ravel()
 
     print(f"Plot: y_tgt {y_tgt.shape}; y_pred {y_pred.shape}")
 
