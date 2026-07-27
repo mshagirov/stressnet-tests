@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from models import resnet18, get_predict_func
-from dataset import ValidationDataset
+from dataset import ValidationDatasetAgeLoc
 from transforms import data_transforms_inference, stiffness_transform
 from plots import plot_scatter
 
@@ -53,7 +53,7 @@ def main():
     DATA_LABELS = args.labels
     DATA_CH_SUFFIX = args.chsuffix
     loader = DataLoader(
-        ValidationDataset(DATA_LABELS, DATA_ROOT, ch_dir_suffix=DATA_CH_SUFFIX,
+        ValidationDatasetAgeLoc(DATA_LABELS, DATA_ROOT, ch_dir_suffix=DATA_CH_SUFFIX,
                           transform=data_transforms_inference,
                           target_transform=stiffness_transform),
         batch_size=batch_size, shuffle=False, num_workers=2)
