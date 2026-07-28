@@ -78,7 +78,9 @@ class StiffnessDataset(Dataset):
         cols.extend(['Group', 'Location'])
         self.img_labels = labels_df[cols]
 
-        self.num_age_loc_cat = 5 # maximum value for Age x Location category 
+        self.num_age = 2
+        self.num_loc = 3
+        self.max_age_loc_cat = self.num_age * self.num_loc - 1 # maximum value for Age x Location category 
         
         self.img_dirs = tuple([root_dir/(ch_k + ch_dir_suffix) for ch_k in ch_names])
         self.transform = transform
@@ -220,7 +222,7 @@ class StiffnessDatasetAgeLoc(StiffnessDataset):
             for img_name  in img_names
         ]
 
-        images.append(torch.zeros_like(images[0]) + age_loc_val/self.num_age_loc_cat)
+        images.append(torch.zeros_like(images[0]) + age_loc_val/self.max_age_loc_cat)
         
         image = torch.cat(images) 
         if self.transform:
@@ -249,7 +251,68 @@ class ValidationDatasetAgeLoc(StiffnessDataset):
             for img_name  in img_names
         ]
         
-        images.append(torch.zeros_like(images[0]) + age_loc_val/self.num_age_loc_cat)
+        images.append(torch.zeros_like(images[0]) + age_loc_val/self.max_age_loc_cat)
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32), sample_ch1_name
+
+
+class StiffnessDatasetAgeLocNoNuc(StiffnessDataset):
+    def __getitem__(self, idx):
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+        
+        age_val = int(self.img_labels['Group'].iloc[idx] == 'A')
+        loc_val = self.img_labels['Location'].iloc[idx]
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+            if 'nucleus' not in img_dir.name.lower()
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+
+        images.append(torch.zeros_like(images[0]) + age_val/(self.num_age - 1)   )
+        images.append(torch.zeros_like(images[0]) + loc_val/(self.num_loc - 1)   )
+        
+        image = torch.cat(images) 
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return image, torch.tensor([stiffness], dtype=torch.float32)
+
+
+class ValidationDatasetAgeLocNoNuc(StiffnessDataset):
+    def __getitem__(self, idx):
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+
+        age_val = int(self.img_labels['Group'].iloc[idx] == 'A')
+        loc_val = self.img_labels['Location'].iloc[idx]
+        
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+            if 'nucleus' not in img_dir.name.lower()
+        ]
+        
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+
+        images.append(torch.zeros_like(images[0]) + age_val/(self.num_age - 1)   )
+        images.append(torch.zeros_like(images[0]) + loc_val/(self.num_loc - 1)   )
         
         image = torch.cat(images) 
         if self.transform:
