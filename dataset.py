@@ -136,7 +136,8 @@ class ValidationDataset(StiffnessDataset):
             for img_name  in img_names
         ]
         
-        images.append(torch.zeros_like(images[0]))
+        if len(img_names)==2:
+            images.append(torch.zeros_like(images[0]))
         
         image = torch.cat(images) 
         if self.transform:
