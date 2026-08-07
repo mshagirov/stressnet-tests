@@ -6,7 +6,7 @@ import torch
 device = torch.device('cpu')
 
 def train_model(
-    model,
+    model: torch.nn.Module,
     criterion,
     optimizer,
     scheduler,
