@@ -118,7 +118,7 @@ class ResNet18WithAgeLoc(nn.Module):
         self.cnn.fc = nn.Identity()
         
         # Age_Location MLP Branch (2-Layer)
-        self.scalar_mlp = nn.Sequential(
+        self.mlp = nn.Sequential(
             # Layer 1
             nn.Linear(in_features=input_dim_mlp, out_features=hidden_dim_mlp),
             nn.BatchNorm1d(hidden_dim_mlp),
@@ -141,7 +141,7 @@ class ResNet18WithAgeLoc(nn.Module):
         """
         img_features = self.cnn(x_img)
         
-        ageloc_features = self.scalar_mlp(x_ageloc)
+        ageloc_features = self.mlp(x_ageloc)
         
         combined_features = torch.cat((img_features, ageloc_features), dim=1)
 
