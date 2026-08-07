@@ -41,8 +41,9 @@ def train_model(
                 running_loss = 0.0
 
                 # Iterate over data.
-                for inputs, labels in dataloaders[phase]:
-                    inputs = inputs.to(device)
+                for batch in dataloaders[phase]:
+                    sample, labels = batch
+                    batch_size = sample.size(0) if isinstance(sample, torch.Tensor) else sample[0].size(0)
                     labels = labels.to(device)
 
                     # zero the parameter gradients
@@ -51,7 +52,13 @@ def train_model(
                     # forward
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
-                        outputs = model(inputs)
+                        if isinstance(sample, (tuple, list)):
+                            # e.g., StiffnessDatasetWithActinAgeLoc yields (image, age_loc, ...)
+                            image, x_ageloc = sample[0].to(device), sample[1].to(device)
+                            outputs = model(image, x_ageloc)
+                        else:
+                            # e.g., StiffnessDataset yields image
+                            outputs = model(sample.to(device))
                         loss = criterion(outputs, labels)
 
                         # backward + optimize only if in training phase
@@ -60,7 +67,7 @@ def train_model(
                             optimizer.step()
 
                     # statistics
-                    running_loss += loss.item() * inputs.size(0)
+                    running_loss += loss.item() * batch_size
                 if (phase == 'train') and scheduler!=None:
                     scheduler.step()
 
