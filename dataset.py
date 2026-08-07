@@ -67,8 +67,6 @@ class StiffnessDataset(Dataset):
         
         for ch, prefix in zip(ch_names,ch_name_prefix):
             labels_df[ch] = labels_df['Image'].apply(lambda x: prefix + x +'.tif')
-        
-
 
         cols = ['Stiffness']
 
@@ -164,9 +162,9 @@ class StiffnessDatasetAge(StiffnessDataset):
             for img_name  in img_names
         ]
 
-        if age == 'Y':
+        if len(img_names)==2 and age == 'Y':
             images.append(torch.zeros_like(images[0]))
-        else:
+        elif len(img_names)==2:
             images.append(torch.zeros_like(images[0]) + 1.0)
         
         image = torch.cat(images) 
@@ -194,9 +192,9 @@ class ValidationDatasetAge(StiffnessDataset):
             for img_name  in img_names
         ]
         
-        if age == 'Y':
+        if len(img_names)==2 and age == 'Y':
             images.append(torch.zeros_like(images[0]))
-        else:
+        elif len(img_names)==2:
             images.append(torch.zeros_like(images[0]) + 1.0)
         
         image = torch.cat(images) 
@@ -224,7 +222,8 @@ class StiffnessDatasetAgeLoc(StiffnessDataset):
             for img_name  in img_names
         ]
 
-        images.append(torch.zeros_like(images[0]) + age_loc_val/self.max_age_loc_cat)
+        if len(img_names)==2:
+            images.append(torch.zeros_like(images[0]) + age_loc_val/self.max_age_loc_cat)
         
         image = torch.cat(images) 
         if self.transform:
@@ -253,7 +252,8 @@ class ValidationDatasetAgeLoc(StiffnessDataset):
             for img_name  in img_names
         ]
         
-        images.append(torch.zeros_like(images[0]) + age_loc_val/self.max_age_loc_cat)
+        if len(img_names)==2:
+            images.append(torch.zeros_like(images[0]) + age_loc_val/self.max_age_loc_cat)
         
         image = torch.cat(images) 
         if self.transform:
@@ -274,7 +274,7 @@ class StiffnessDatasetAgeLocNoNuc(StiffnessDataset):
         img_names = [
             img_dir/k 
             for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
-            if 'nucleus' not in img_dir.name.lower()
+            if 'collagen' in img_dir.name.lower()
         ]
         
         images = [
@@ -305,7 +305,7 @@ class ValidationDatasetAgeLocNoNuc(StiffnessDataset):
         img_names = [
             img_dir/k 
             for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
-            if 'nucleus' not in img_dir.name.lower()
+            if 'collagen' in img_dir.name.lower()
         ]
         
         images = [
@@ -323,3 +323,107 @@ class ValidationDatasetAgeLocNoNuc(StiffnessDataset):
             stiffness = self.target_transform(stiffness)
 
         return image, torch.tensor([stiffness], dtype=torch.float32), sample_ch1_name
+
+
+class StiffnessDatasetWithActinAgeLoc(Dataset):
+    def __init__(self,
+                 annotations_file:str,
+                 root_dir:Path|str,
+                 ch_names=('Nucleus','Collagen','Actin'),
+                 ch_dir_suffix='',
+                 ch_name_prefix=('C1-','C2-','C3-'),
+                 transform=None, target_transform=None):
+        '''
+        - annotations_file : *.xlsx file with 'Stiffness' and 'Image' (image names) columns,
+                            all channel prefixes are removed from 'Image' column before generating
+                            image file names for the dataset
+        - root_dir : root directory that contains the `annotations_file` and image directories
+        - ch_names: tuple containing channel names, `ch_names` must macth names of the image
+                   directories in the `root_dir`.
+        - ch_dir_suffix: a string used as a suffix for all names in the `ch_names`, e.g.,
+                        use ch_dir_suffix="Train_" for folders are named "Train_Nucleus/" and
+                        "Train_Collagen"
+        - ch_name_prefix: tuple of strings used as prefixes for image file names
+        - transform: input/image transfroms
+        - target_transform: transforms for the labels (y)
+        '''
+        def remove_ch_prefix(s):
+            for prefix in ch_name_prefix:
+                if s.startswith(prefix):
+                    s = s.removeprefix(prefix)
+                    break
+            return s
+        
+        def extract_location(s):
+            max_loc_val = 2
+            stem = s.split('_')[0]
+            if stem.endswith('LV'):
+                return 0
+            if stem.endswith('IVS'):
+                return 1/max_loc_val
+            if stem.endswith('RV'):
+                return 2/max_loc_val
+
+        root_dir = Path(root_dir)
+        assert (root_dir/annotations_file).exists(), f"Could not find the {(root_dir/annotations_file)}"
+        
+        labels_df = pd.read_excel(root_dir/annotations_file)
+        labels_df['Image'] = labels_df['Image'].apply(remove_ch_prefix)
+        labels_df['Location'] =  labels_df['Image'].apply(extract_location)
+        labels_df['Age'] = (labels_df['Group'] == 'A').astype(float) # as a boolean
+        
+        for ch, prefix in zip(ch_names,ch_name_prefix):
+            labels_df[ch] = labels_df['Image'].apply(lambda x: prefix + x +'.tif')
+
+        cols = ['Stiffness']
+
+        cols.extend(ch_names)
+        self.img_channels = list(ch_names)
+
+        cols.extend(['Age', 'Location'])
+        self.img_labels = labels_df[cols]
+
+        self.img_dirs = tuple([root_dir/(ch_k + ch_dir_suffix) for ch_k in ch_names])
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __repr__(self):
+        desc = f'{self.__class__.__name__}: {self.img_dirs[0].parent.name}'
+        desc += f'; {len(self)} labels'
+        desc += f'\nchannels: ({", ".join(ch.name for ch in self.img_dirs)})'
+        desc += f'; {self.transform}' if self.transform else ''
+        desc += f'; {self.target_transform}' if self.target_transform else ''
+        return desc
+
+    def __len__(self):
+        return len(self.img_labels)
+
+    def __getitem__(self, idx):
+        stiffness = self.img_labels['Stiffness'].iloc[idx] # \in [0, 1]
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
+        age_val = self.img_labels['Age'].iloc[idx] # \in { 0, 1 }
+        loc_val = self.img_labels['Location'].iloc[idx] # \in {0, 1, 2, ...}
+
+        img_names = [
+            img_dir/k 
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+        ] 
+
+        # assume always 3 channels
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ] 
+        image = torch.cat(images) 
+
+        age_loc = torch.cat([age_val, loc_val])
+
+        if self.transform:
+            image = self.transform(image)
+
+        if self.target_transform:
+            stiffness = self.target_transform(stiffness)
+
+        return (image, age_loc, sample_ch1_name), torch.tensor([stiffness], dtype=torch.float32)
+
+
