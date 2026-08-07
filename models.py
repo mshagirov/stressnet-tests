@@ -121,12 +121,12 @@ class ResNet18WithAgeLoc(nn.Module):
         self.mlp = nn.Sequential(
             # Layer 1
             nn.Linear(in_features=input_dim_mlp, out_features=hidden_dim_mlp),
-            nn.BatchNorm1d(hidden_dim_mlp),
+            nn.LayerNorm(hidden_dim_mlp),
             nn.ReLU(inplace=True),
             
             # Layer 2 (Output size = 8 neurons)
             nn.Linear(in_features=hidden_dim_mlp, out_features=embed_dim_mlp),
-            nn.BatchNorm1d(embed_dim_mlp),
+            nn.LayerNorm(embed_dim_mlp),
             nn.ReLU(inplace=True)
         )
         
