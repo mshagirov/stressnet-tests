@@ -2,8 +2,8 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torchvision import models
-from torchvision.models import ResNet18_Weights, resnet18
+from torchvision.models import ResNet18_Weights
+from torchvision.models import resnet18 as pt_resnet18
 
 
 if torch.cuda.is_available():
@@ -48,31 +48,31 @@ def fc_layers(in_features:int, out_features=1, hidden_layers=[], p=0) -> nn.Modu
         fc_net.append( nn.Linear( in_features, out_features))
     return nn.Sequential(*fc_net)
 
-def resnet18(weights:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
+def resnet18(weights_path:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
     '''
     The last FC-layers consist of torch.nn.nn.Linear Module 
     '''
     
-    model_ft = models.resnet18()
+    model_ft = pt_resnet18()
     num_ftrs = model_ft.fc.in_features
     model_ft.fc = nn.Linear(num_ftrs, 1)
     
     model_ft.load_state_dict(
-        torch.load(weights, weights_only=True, map_location=torch.device(device))
+        torch.load(weights_path, weights_only=True, map_location=torch.device(device))
     )
     return model_ft
 
-def resnet18_seq(weights:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
+def resnet18_seq(weights_path:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
     '''
     The last FC-layers consist of torch.nn.Sequential Module from fc_layers() function above
     '''
     
-    model_ft = models.resnet18()
+    model_ft = pt_resnet18()
     num_ftrs = model_ft.fc.in_features
     model_ft.fc = fc_layers(num_ftrs, hidden_layers=[])
 
     model_ft.load_state_dict(
-        torch.load(weights, weights_only=True, map_location=torch.device(device))
+        torch.load(weights_path, weights_only=True, map_location=torch.device(device))
     )
     return model_ft
 
@@ -110,7 +110,7 @@ class ResNet18WithAgeLoc(nn.Module):
         super(ResNet18WithAgeLoc, self).__init__()
         
         weights = ResNet18_Weights.DEFAULT if pretrained else None
-        self.cnn = resnet18(weights=weights)
+        self.cnn = pt_resnet18(weights=weights)
         
         # original FC input
         cnn_feature_dim = self.cnn.fc.in_features
