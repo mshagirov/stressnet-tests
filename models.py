@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import torch
-from torchvision import models
 from torch import nn
+from torchvision import models
+from torchvision.models import ResNet18_Weights, resnet18
 
 
 if torch.cuda.is_available():
@@ -75,3 +76,74 @@ def resnet18_seq(weights:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Mod
     )
     return model_ft
 
+
+class ResNet18WithAgeLoc(nn.Module):
+    '''
+    Usage:
+
+    ```
+    batch_size = 4
+    x_images = torch.randn(batch_size, 3, 224, 224)  # (B, 3, H, W)
+    x_age_loc = torch.randn(batch_size, 2)            # (B, 2)
+    
+    model = ResNet18WithAgeLoc(num_classes=1, pretrained=True)
+    output = model(x_images, x_age_loc)
+    ```
+    '''
+
+    def __init__(
+        self,
+        num_classes: int = 1,
+        input_dim_mlp:int = 2,
+        hidden_dim_mlp: int = 32,
+        embed_dim_mlp: int = 8,
+        pretrained: bool = True
+    ):
+        '''
+        num_classes : num dim-s of the model's output (e.g., "num_classes=1" for model(x) -> Stiffness (scalar) )
+        input_dim_mlp: num dim-s MLP input layer,
+        hidden_dim_mlp : num dim-s hidden MLP hidden layer
+        embed_dim_mlp : num dim-s of MLP output
+        pretrained: load pretrained wights from torchvision.models.ResNet18_Weights
+        '''
+
+        super(ResNet18WithAgeLoc, self).__init__()
+        
+        weights = ResNet18_Weights.DEFAULT if pretrained else None
+        self.cnn = resnet18(weights=weights)
+        
+        # original FC input
+        cnn_feature_dim = self.cnn.fc.in_features
+        # Remove original FC layer
+        self.cnn.fc = nn.Identity()
+        
+        # Age_Location MLP Branch (2-Layer)
+        self.scalar_mlp = nn.Sequential(
+            # Layer 1
+            nn.Linear(in_features=input_dim_mlp, out_features=hidden_dim_mlp),
+            nn.BatchNorm1d(hidden_dim_mlp),
+            nn.ReLU(inplace=True),
+            
+            # Layer 2 (Output size = 8 neurons)
+            nn.Linear(in_features=hidden_dim_mlp, out_features=embed_dim_mlp),
+            nn.BatchNorm1d(embed_dim_mlp),
+            nn.ReLU(inplace=True)
+        )
+        
+        # output layer
+        combined_dim = cnn_feature_dim + embed_dim_mlp  # CNN_features + MLP_output 
+        self.fc_head = nn.Linear(in_features=combined_dim, out_features=num_classes)
+
+    def forward(self, x_img: torch.Tensor, x_ageloc: torch.Tensor) -> torch.Tensor:
+        """
+        x_img:    Image tensor of shape (Batch_Size, 3, H, W)
+        x_ageloc: Scalar tensor of shape (Batch_Size, 2)
+        """
+        img_features = self.cnn(x_img)
+        
+        ageloc_features = self.scalar_mlp(x_ageloc)
+        
+        combined_features = torch.cat((img_features, ageloc_features), dim=1)
+
+        out = self.fc_head(combined_features)
+        return out
