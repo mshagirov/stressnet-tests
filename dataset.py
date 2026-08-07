@@ -416,7 +416,7 @@ class StiffnessDatasetWithActinAgeLoc(Dataset):
         ] 
         image = torch.cat(images) 
 
-        age_loc = torch.cat([age_val, loc_val])
+        age_loc = torch.from_numpy(np.array([age_val, loc_val],dtype=np.float32))
 
         if self.transform:
             image = self.transform(image)
