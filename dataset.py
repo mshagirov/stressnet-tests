@@ -1,8 +1,8 @@
+from pathlib import Path
+
+from PIL import Image
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from PIL import Image
-
 import torch
 from torch.utils.data import Dataset
 
