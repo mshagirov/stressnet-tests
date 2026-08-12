@@ -2,6 +2,7 @@ from torchvision import transforms
 import math
 
 im_dim = 256
+im_dim_v2 = 96
 
 # STIFMaps examples:
 # brightness_range = (.9,1.1), 
@@ -28,7 +29,24 @@ data_transforms = {
     ]),
 }
 
+data_transforms_v2 = {
+    'train': transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.RandomRotation(degrees=360),
+        transforms.CenterCrop(im_dim_v2),
+        transforms.Resize(224),
+        # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ]),
+    'val': transforms.Compose([
+        transforms.CenterCrop(im_dim_v2),
+        transforms.Resize(224),
+        # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ]),
+}
+
 data_transforms_inference = data_transforms['val']
+data_transforms_inference_v2 = data_transforms_v2['val']
 
 # transforms for y_tgt
 class TargetNormalise:
