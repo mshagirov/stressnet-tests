@@ -45,8 +45,21 @@ data_transforms_v2 = {
     ]),
 }
 
+data_transforms_v3 = {
+    'train': transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.RandomRotation(degrees=360),
+        transforms.CenterCrop(im_dim_v2),
+    ]),
+    'val': transforms.Compose([
+        transforms.CenterCrop(im_dim_v2),
+    ]),
+}
+
 data_transforms_inference = data_transforms['val']
 data_transforms_inference_v2 = data_transforms_v2['val']
+data_transforms_inference_v3 = data_transforms_v3['val']
 
 # transforms for y_tgt
 class TargetNormalise:
