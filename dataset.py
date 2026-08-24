@@ -1,10 +1,11 @@
 from pathlib import Path
 
-from PIL import Image
 import numpy as np
 import pandas as pd
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
+
 
 def read_16uint_tiff(img_path:Path|str, scale_with_percentile:None|float=None):
     img = Image.open(img_path)
@@ -425,5 +426,40 @@ class StiffnessDatasetWithActinAgeLoc(Dataset):
             stiffness = self.target_transform(stiffness)
 
         return (image, age_loc, sample_ch1_name), torch.tensor([stiffness], dtype=torch.float32)
+
+
+class AgeDataset(StiffnessDataset):
+    '''
+    Dataset for age classification based on the 'Group' column.
+
+    Works with both 2-channel datasets (e.g., v5: Nucleus+Collagen) and
+    3-channel datasets (e.g., v6: Nucleus+Collagen+Actin); a missing third
+    channel is filled with zeros.
+    '''
+
+    def __getitem__(self, idx):
+        age = 'adult' if self.img_labels['Group'].iloc[idx] == 'A' else 'young'
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
+
+        img_names = [
+            img_dir/k
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+        ]
+
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+
+        if len(img_names)==2:
+            images.append(torch.zeros_like(images[0]))
+
+        image = torch.cat(images)
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            age = self.target_transform(age)
+
+        return image, age, sample_ch1_name
 
 
