@@ -8,3 +8,5 @@ __pycache__
 plan.md
 
 *.out
+*.log
+*report.csv
