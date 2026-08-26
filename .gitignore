@@ -10,3 +10,4 @@ plan.md
 *.out
 *.log
 *report.csv
+*report_*.csv

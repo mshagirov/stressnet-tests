@@ -1,5 +1,7 @@
-from torchvision import transforms
 import math
+
+import torch
+from torchvision import transforms
 
 im_dim = 256
 im_dim_v2 = 96
@@ -57,9 +59,47 @@ data_transforms_v3 = {
     ]),
 }
 
+class AddGaussianNoise:
+    '''Add Gaussian noise to a float image tensor with probability `p`.
+
+    Usage:
+        noise_TF = AddGaussianNoise(std=0.02, p=0.5)
+        x_noisy = noise_TF(x)
+    '''
+    def __init__(self, std:float=0.02, p:float=0.5):
+        self.std = std
+        self.p = p
+
+    def __call__(self, x):
+        if torch.rand(()) > self.p:
+            return x
+        return (x + torch.randn_like(x)*self.std).clamp(0, 1)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(std={self.std}, p={self.p})'
+
+# Xv4: stronger augmentation for small training sets (age classifier v2 runs)
+data_transforms_v4 = {
+    'train': transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.RandomRotation(degrees=360),
+        transforms.RandomResizedCrop(im_dim, scale=(0.6, 1.0)),
+        transforms.Resize(224),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ElasticTransform(alpha=50.0, sigma=5.0),
+        AddGaussianNoise(std=0.02, p=0.5),
+    ]),
+    'val': transforms.Compose([
+        transforms.CenterCrop(im_dim),
+        transforms.Resize(224),
+    ]),
+}
+
 data_transforms_inference = data_transforms['val']
 data_transforms_inference_v2 = data_transforms_v2['val']
 data_transforms_inference_v3 = data_transforms_v3['val']
+data_transforms_inference_v4 = data_transforms_v4['val']
 
 # transforms for y_tgt
 class TargetNormalise:
