@@ -499,3 +499,14 @@ class AgeDatasetNoNucleus(AgeDataset):
         return image, age, sample_ch1_name
 
 
+class AgeStiffnessDataset(AgeDataset):
+    '''
+    AgeDataset variant with categorised stiffness.
+
+    Instead of "age" outputs a stiffness category based on the stiffness thresholds in
+    `root_dir/stiffness_thresholds.yaml`. Thresholds may be different for the Adult and
+    Young (age) samples.
+    '''
+
+    def __getitem__(self, idx):
+        pass
