@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import yaml
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -19,6 +20,12 @@ def read_16uint_tiff(img_path:Path|str, scale_with_percentile:None|float=None):
     img_tensor = torch.from_numpy(img_np)
     
     return img_tensor
+
+
+def _load_stiffness_thresholds(path):
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    return dict(data['stiffness_threshold'])
 
 
 class StiffnessDataset(Dataset):
@@ -508,5 +515,40 @@ class AgeStiffnessDataset(AgeDataset):
     Young (age) samples.
     '''
 
+    def __init__(self, annotations_file, root_dir, transform=None, target_transform=None,
+                 **kwargs):
+        super().__init__(annotations_file, root_dir, transform=transform,
+                         target_transform=target_transform, **kwargs)
+        root_dir_path = Path(root_dir)
+        thresholds_path = root_dir_path.parent / 'stiffness_thresholds.yaml'
+        if not thresholds_path.exists():
+            raise FileNotFoundError(thresholds_path)
+        self.thresholds = _load_stiffness_thresholds(thresholds_path)
+
     def __getitem__(self, idx):
-        pass
+        group = 'adult' if self.img_labels['Group'].iloc[idx] == 'A' else 'young'
+        stiffness = self.img_labels['Stiffness'].iloc[idx]
+        level = 'high' if stiffness >= self.thresholds[group] else 'low'
+        categorised_stiffness = f'{group}_{level}'
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
+
+        img_names = [
+            img_dir/k
+            for img_dir,k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx])
+        ]
+
+        images = [
+            read_16uint_tiff(img_name, scale_with_percentile=99)[None, :]
+            for img_name  in img_names
+        ]
+
+        if len(img_names)==2:
+            images.append(torch.zeros_like(images[0]))
+
+        image = torch.cat(images)
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            categorised_stiffness = self.target_transform(categorised_stiffness)
+
+        return image, categorised_stiffness, sample_ch1_name
