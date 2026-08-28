@@ -463,3 +463,39 @@ class AgeDataset(StiffnessDataset):
         return image, age, sample_ch1_name
 
 
+class AgeDatasetNoNucleus(AgeDataset):
+    '''
+    AgeDataset variant with the Nucleus channel zeroed out.
+
+    Only the non-Nucleus channel TIFFs are read from disk; the Nucleus plane
+    is replaced by zeros, keeping the exact AgeDataset sample layout
+    (3-channel image, age string, filename) so current models and training
+    scripts work unchanged.
+    '''
+
+    def __getitem__(self, idx):
+        age = 'adult' if self.img_labels['Group'].iloc[idx] == 'A' else 'young'
+        sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
+
+        images = []
+        for img_dir, k in zip(self.img_dirs, self.img_labels[self.img_channels].iloc[idx]):
+            if 'nucleus' in img_dir.name.lower():
+                images.append(None)
+            else:
+                images.append(read_16uint_tiff(img_dir/k, scale_with_percentile=99)[None, :])
+
+        ref_img = next(img for img in images if img is not None)
+        images = [img if img is not None else torch.zeros_like(ref_img) for img in images]
+
+        if len(images) == 2:
+            images.append(torch.zeros_like(ref_img))
+
+        image = torch.cat(images)
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            age = self.target_transform(age)
+
+        return image, age, sample_ch1_name
+
+

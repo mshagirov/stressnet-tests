@@ -137,11 +137,14 @@ def stratified_split(groups: pd.Series, val_frac: float, seed: int = 42):
     return sorted(train_idx), sorted(val_idx)
 
 
-def build_datasets(cfg: dict, train_transform, val_frac: float):
+def build_datasets(cfg: dict, train_transform, val_frac: float,
+                   dataset_cls=AgeDataset):
     '''Internal stratified train/val split of Training_Data (+ held-out dataset).
 
     The val phase uses the internal val split (inference transforms);
     Prediction_Data is returned separately as 'heldout' and never trained on.
+    dataset_cls allows swapping in an AgeDataset subclass (e.g.
+    AgeDatasetNoNucleus) for all three splits.
     '''
     sub_dir, suffix, labels = TRAIN_DIR
     common = {
@@ -149,9 +152,9 @@ def build_datasets(cfg: dict, train_transform, val_frac: float):
         'ch_name_prefix': cfg['ch_name_prefix'],
         'ch_dir_suffix': suffix,
     }
-    ds_train_tf = AgeDataset(labels, cfg['root']/sub_dir, transform=train_transform, **common)
-    ds_infer = AgeDataset(labels, cfg['root']/sub_dir,
-                          transform=data_transforms_inference, **common)
+    ds_train_tf = dataset_cls(labels, cfg['root']/sub_dir, transform=train_transform, **common)
+    ds_infer = dataset_cls(labels, cfg['root']/sub_dir,
+                           transform=data_transforms_inference, **common)
 
     train_idx, val_idx = stratified_split(ds_infer.img_labels['Group'], val_frac)
     print(f'Internal split: {len(train_idx)} train / {len(val_idx)} val '
@@ -159,11 +162,11 @@ def build_datasets(cfg: dict, train_transform, val_frac: float):
     print(repr(ds_train_tf))
 
     h_sub, h_suffix, h_labels = HELDOUT_DIR
-    ds_heldout = AgeDataset(h_labels, cfg['root']/h_sub,
-                            transform=data_transforms_inference,
-                            ch_names=cfg['ch_names'],
-                            ch_name_prefix=cfg['ch_name_prefix'],
-                            ch_dir_suffix=h_suffix)
+    ds_heldout = dataset_cls(h_labels, cfg['root']/h_sub,
+                             transform=data_transforms_inference,
+                             ch_names=cfg['ch_names'],
+                             ch_name_prefix=cfg['ch_name_prefix'],
+                             ch_dir_suffix=h_suffix)
     print(repr(ds_heldout))
 
     return {
