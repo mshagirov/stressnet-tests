@@ -138,13 +138,16 @@ def stratified_split(groups: pd.Series, val_frac: float, seed: int = 42):
 
 
 def build_datasets(cfg: dict, train_transform, val_frac: float,
-                   dataset_cls=AgeDataset):
+                   dataset_cls=AgeDataset, stratify_col='Group'):
     '''Internal stratified train/val split of Training_Data (+ held-out dataset).
 
     The val phase uses the internal val split (inference transforms);
     Prediction_Data is returned separately as 'heldout' and never trained on.
     dataset_cls allows swapping in an AgeDataset subclass (e.g.
-    AgeDatasetNoNucleus) for all three splits.
+    AgeDatasetNoNucleus, AgeStiffnessDataset) for all three splits.
+    stratify_col selects which img_labels column the internal split is
+    stratified by (default 'Group' = age; AgeStiffnessDataset exposes
+    'Category' for its 4 stiffness categories).
     '''
     sub_dir, suffix, labels = TRAIN_DIR
     common = {
@@ -156,9 +159,9 @@ def build_datasets(cfg: dict, train_transform, val_frac: float,
     ds_infer = dataset_cls(labels, cfg['root']/sub_dir,
                            transform=data_transforms_inference, **common)
 
-    train_idx, val_idx = stratified_split(ds_infer.img_labels['Group'], val_frac)
-    print(f'Internal split: {len(train_idx)} train / {len(val_idx)} val '
-          f'(of {len(ds_infer)} Training_Data samples)')
+    train_idx, val_idx = stratified_split(ds_infer.img_labels[stratify_col], val_frac)
+    print(f'Internal split ({stratify_col}-stratified): {len(train_idx)} train / '
+          f'{len(val_idx)} val (of {len(ds_infer)} Training_Data samples)')
     print(repr(ds_train_tf))
 
     h_sub, h_suffix, h_labels = HELDOUT_DIR

@@ -525,11 +525,14 @@ class AgeStiffnessDataset(AgeDataset):
             raise FileNotFoundError(thresholds_path)
         self.thresholds = _load_stiffness_thresholds(thresholds_path)
 
+        groups = np.where(self.img_labels['Group'].to_numpy() == 'A', 'adult', 'young')
+        stiffness = self.img_labels['Stiffness'].to_numpy()
+        levels = np.where([s >= self.thresholds[g] for s, g in zip(stiffness, groups)],
+                          'high', 'low')
+        self.img_labels['Category'] = [f'{g}_{l}' for g, l in zip(groups, levels)]
+
     def __getitem__(self, idx):
-        group = 'adult' if self.img_labels['Group'].iloc[idx] == 'A' else 'young'
-        stiffness = self.img_labels['Stiffness'].iloc[idx]
-        level = 'high' if stiffness >= self.thresholds[group] else 'low'
-        categorised_stiffness = f'{group}_{level}'
+        categorised_stiffness = self.img_labels['Category'].iloc[idx]
         sample_ch1_name = str(self.img_labels[self.img_channels].iloc[idx, 0])
 
         img_names = [
@@ -552,3 +555,50 @@ class AgeStiffnessDataset(AgeDataset):
             categorised_stiffness = self.target_transform(categorised_stiffness)
 
         return image, categorised_stiffness, sample_ch1_name
+
+
+class AgeStiffnessDataset_v2(AgeStiffnessDataset):
+    '''
+    AgeStiffnessDataset variant with 3 stiffness categories.
+
+    Categorises samples into 'young_low' / 'medium' / 'adult_high' using the
+    per-group thresholds from `root_dir/stiffness_thresholds.yaml`:
+      - 'young_low'  : young sample with stiffness <= young threshold
+      - 'adult_high' : adult sample with stiffness > adult threshold
+      - 'medium'     : everything else
+    '''
+
+    def __init__(self, annotations_file, root_dir, transform=None, target_transform=None,
+                 **kwargs):
+        super().__init__(annotations_file, root_dir, transform=transform,
+                         target_transform=target_transform, **kwargs)
+        groups = np.where(self.img_labels['Group'].to_numpy() == 'A', 'adult', 'young')
+        stiffness = self.img_labels['Stiffness'].to_numpy()
+        categories = []
+        for g, s in zip(groups, stiffness):
+            if g == 'young' and s <= self.thresholds['young']:
+                categories.append('young_low')
+            elif g == 'adult' and s > self.thresholds['adult']:
+                categories.append('adult_high')
+            else:
+                categories.append('medium')
+        self.img_labels['Category'] = categories
+
+
+class CategorisedStiffnessDataset(AgeStiffnessDataset):
+    '''
+    AgeStiffnessDataset variant with a single stiffness threshold.
+
+    Categorises samples into 'low' / 'high' using the mean of the per-group
+    thresholds from `root_dir/stiffness_thresholds.yaml`:
+      - 'low'  : stiffness <= (young + adult)/2
+      - 'high' : stiffness > (young + adult)/2
+    '''
+
+    def __init__(self, annotations_file, root_dir, transform=None, target_transform=None,
+                 **kwargs):
+        super().__init__(annotations_file, root_dir, transform=transform,
+                         target_transform=target_transform, **kwargs)
+        mean_threshold = (self.thresholds['young'] + self.thresholds['adult']) / 2
+        stiffness = self.img_labels['Stiffness'].to_numpy()
+        self.img_labels['Category'] = np.where(stiffness <= mean_threshold, 'low', 'high')
