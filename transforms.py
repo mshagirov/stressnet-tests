@@ -5,6 +5,9 @@ from torchvision import transforms
 
 im_dim = 256
 im_dim_v2 = 96
+# v5.2-gridaveraged images are 1376x1376; largest square fully valid after
+# 360-degree rotation: floor(1376/sqrt(2)) = 972
+im_dim_v4 = 972
 
 # STIFMaps examples:
 # brightness_range = (.9,1.1), 
@@ -84,14 +87,14 @@ data_transforms_v4 = {
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
         transforms.RandomRotation(degrees=360),
-        transforms.RandomResizedCrop(im_dim, scale=(0.6, 1.0)),
+        transforms.RandomResizedCrop(im_dim_v4, scale=(0.6, 1.0)),
         transforms.Resize(224),
         transforms.ColorJitter(brightness=0.2, contrast=0.2),
         transforms.ElasticTransform(alpha=50.0, sigma=5.0),
         AddGaussianNoise(std=0.02, p=0.5),
     ]),
     'val': transforms.Compose([
-        transforms.CenterCrop(im_dim),
+        transforms.CenterCrop(im_dim_v4),
         transforms.Resize(224),
     ]),
 }
@@ -144,4 +147,9 @@ stiffness_norm_v1 = transforms.Compose([
 
 stiffness_norm_v2 = transforms.Compose([
     TargetNormalise(offset=0.0, scale=25.0)
+])
+
+stiffness_norm_v3 = transforms.Compose([
+    TargetLog(),
+    TargetNormalise(offset=1.5, scale=1.0)
 ])

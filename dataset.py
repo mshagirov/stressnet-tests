@@ -35,6 +35,7 @@ class StiffnessDataset(Dataset):
                  ch_names=('Nucleus', 'Collagen'),
                  ch_dir_suffix='',
                  ch_name_prefix=('C1-','C2-'),
+                 stiffness_col:str='Stiffness',
                  transform=None, target_transform=None):
         '''
         - annotations_file : *.xlsx file with 'Stiffness' and 'Image' (image names) columns,
@@ -70,6 +71,7 @@ class StiffnessDataset(Dataset):
         assert (root_dir/annotations_file).exists(), f"Could not find the {(root_dir/annotations_file)}"
         
         labels_df = pd.read_excel(root_dir/annotations_file)
+        labels_df['Stiffness'] = labels_df[stiffness_col]
         labels_df['Image'] = labels_df['Image'].apply(remove_ch_prefix)
         labels_df['Location'] =  labels_df['Image'].apply(extract_location)
         
@@ -510,20 +512,24 @@ class AgeStiffnessDataset(AgeDataset):
     '''
     AgeDataset variant with categorised stiffness.
 
-    Instead of "age" outputs a stiffness category based on the stiffness thresholds in
-    `root_dir/stiffness_thresholds.yaml`. Thresholds may be different for the Adult and
-    Young (age) samples.
+    Instead of "age" outputs a stiffness category based on per-group thresholds.
+    If `stress_threshold` is given, that value is used for both young and adult
+    groups and the yaml file is not read. Otherwise thresholds are loaded from
+    `root_dir.parent/stiffness_thresholds.yaml` and may differ by age group.
     '''
 
     def __init__(self, annotations_file, root_dir, transform=None, target_transform=None,
-                 **kwargs):
+                 stress_threshold=None, **kwargs):
         super().__init__(annotations_file, root_dir, transform=transform,
                          target_transform=target_transform, **kwargs)
-        root_dir_path = Path(root_dir)
-        thresholds_path = root_dir_path.parent / 'stiffness_thresholds.yaml'
-        if not thresholds_path.exists():
-            raise FileNotFoundError(thresholds_path)
-        self.thresholds = _load_stiffness_thresholds(thresholds_path)
+        if stress_threshold is not None:
+            self.thresholds = {'young': stress_threshold, 'adult': stress_threshold}
+        else:
+            root_dir_path = Path(root_dir)
+            thresholds_path = root_dir_path.parent / 'stiffness_thresholds.yaml'
+            if not thresholds_path.exists():
+                raise FileNotFoundError(thresholds_path)
+            self.thresholds = _load_stiffness_thresholds(thresholds_path)
 
         groups = np.where(self.img_labels['Group'].to_numpy() == 'A', 'adult', 'young')
         stiffness = self.img_labels['Stiffness'].to_numpy()

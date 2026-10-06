@@ -1,13 +1,13 @@
 '''Train a 2-way categorised-stiffness classifier (low/high) using
 CategorisedStiffnessDataset (single threshold = mean of the young/adult
-thresholds).
+thresholds, or --stress-threshold if given).
 
 Hyperparameters are the best ones found for the age classifiers
 (gradual_unfreeze_nolblsmooth_mx00_do00): Xv1 transforms, 10 frozen
 backbone epochs then differential-LR fine-tune (head lr_head/10, backbone
 lr_backbone), AdamW wd 1e-4, cosine annealing, patience 10, and NO label
 smoothing / MixUp / dropout. The internal train/val split is stratified by
-the 2 categories (stratify_col='Category') instead of age Group.
+age Group.
 
 Reuses datasets, loaders, optimizer and plotting from the age-classifier v2
 modules; only the prediction/plotting helpers and the report schema are
@@ -23,6 +23,8 @@ import csv
 import sys
 import time
 from collections import Counter
+from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 import matplotlib
@@ -32,6 +34,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+import yaml
 from torch import nn
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
@@ -40,7 +43,7 @@ from classifier_trainer_categorised import (
     CATEGORISED_TO_IDX,
     train_classifier_categorised,
 )
-from classifiers import resnet18_classifier
+from classifiers import resnet18_classifier, resnet34_classifier
 from dataset import CategorisedStiffnessDataset
 from models import TORCH_DEVICE
 from train_age_classifier_v2 import (
@@ -56,8 +59,13 @@ from train_age_classifier_v2 import (
 )
 
 CATEGORY_ORDER = ['low', 'high']
-STRATEGY_NAME = 'gradual_unfreeze_nolblsmooth_mx00_do00_catstrat'
-STRATIFY_COL = 'Category'
+CLASSIFIERS = {
+    'resnet18': resnet18_classifier,
+    'resnet34': resnet34_classifier,
+}
+STRATEGY_NAME = 'gradual_unfreeze_nolblsmooth_mx00_do00_groupstrat'
+STRATIFY_COL = 'Group'
+DATASET_TASK = CategorisedStiffnessDataset.__name__.removesuffix('Dataset')
 
 # Best age-classifier config; no label smoothing / MixUp / dropout.
 STRATEGY = {
@@ -75,6 +83,7 @@ def parse_args(args):
                     '(gradual_unfreeze, no ls/mixup/dropout)')
     parser.add_argument('--datasets', nargs='+', choices=list(DATASET_CONFIGS),
                         default=None)
+    parser.add_argument('--arch', choices=list(CLASSIFIERS), default='resnet18')
     parser.add_argument('--epochs', type=int, default=STRATEGY['epochs'])
     parser.add_argument('--freeze-epochs', type=int, default=STRATEGY['freeze_epochs'],
                         help='frozen-backbone epochs')
@@ -85,6 +94,13 @@ def parse_args(args):
     parser.add_argument('--balanced', action='store_true',
                         help='undersample the train partition to a 50/50 low/high split; '
                              'run name gets a _bal50 tag')
+    parser.add_argument('--stress-threshold', type=float, default=None,
+                        help='single stiffness cut for both age groups (skips yaml); '
+                             'run name gets a _th<value> tag')
+    parser.add_argument('--early-stopping', action='store_true',
+                        help='stop stage 2 after STRATEGY patience epochs without val improvement')
+    parser.add_argument('--save-best', action='store_true',
+                        help='checkpoint and report the best-val weights; default is last epoch')
     parser.add_argument('--debug', action='store_true',
                         help='smoke test: 1 dataset, 2 epochs, small subset')
     return parser.parse_args(args)
@@ -167,19 +183,53 @@ def balance_subsets(datasets: dict, seed: int = 42) -> dict:
     return datasets
 
 
+def write_train_params(path: Path, data_key: str, s: dict, args, run_dt: str):
+    params = {
+        'model_arch': args.arch,
+        'dataset': data_key,
+        'dataset_cls': DATASET_TASK,
+        'datetime': run_dt,
+        'transform': s['transform'],
+        'epochs': s['epochs'],
+        'freeze_epochs': s['freeze_epochs'],
+        'batch_size': args.batch_size,
+        'val_frac': args.val_frac,
+        'lr_head': s['lr_head'],
+        'lr_backbone': s['lr_backbone'],
+        'weight_decay': s['weight_decay'],
+        'label_smoothing': s['label_smoothing'],
+        'dropout': s['dropout'],
+        'mixup_alpha': s['mixup_alpha'],
+        'patience': s['patience'] if args.early_stopping else None,
+        'early_stopping': args.early_stopping,
+        'save_best': args.save_best,
+        'pretrained': True,
+        'num_classes': 2,
+        'optimizer': 'AdamW',
+        'scheduler': 'CosineAnnealingLR',
+        'stratify_col': STRATIFY_COL,
+        'stress_threshold': args.stress_threshold,
+        'balanced': args.balanced,
+        'debug': args.debug,
+    }
+    with path.open('w') as f:
+        yaml.safe_dump(params, f, default_flow_style=False, sort_keys=False)
+
+
 def run_training(data_key: str, s: dict, args) -> dict:
-    strategy_name = STRATEGY_NAME + ('_bal50' if args.balanced else '')
-    model_name = (f'resnet18_categorised_classifier_{data_key}_{s["transform"]}_'
-                  f'{strategy_name}')
-    if args.debug:
-        model_name += '_debug'
+    run_dt = datetime.now(UTC).astimezone().strftime('%d%m%y-%H%M%S')
+    model_name = f'{args.arch}_{data_key}_{DATASET_TASK}_{run_dt}'
     model_dir = SAVE_ROOT/model_name
     model_dir.mkdir(parents=True, exist_ok=True)
 
     print(f'\n=== {model_name} ===')
+    dataset_cls = CategorisedStiffnessDataset
+    if args.stress_threshold is not None:
+        dataset_cls = partial(CategorisedStiffnessDataset,
+                              stress_threshold=args.stress_threshold)
     datasets = build_datasets(DATASET_CONFIGS[data_key],
                               TRAIN_TRANSFORMS[s['transform']], args.val_frac,
-                              dataset_cls=CategorisedStiffnessDataset,
+                              dataset_cls=dataset_cls,
                               stratify_col=STRATIFY_COL)
     if args.debug:
         datasets['train'] = Subset(datasets['train'].dataset,
@@ -191,13 +241,15 @@ def run_training(data_key: str, s: dict, args) -> dict:
         s['freeze_epochs'] = 1
     if args.balanced:
         datasets = balance_subsets(datasets)
+    write_train_params(model_dir/'train_params.yaml', data_key, s, args, run_dt)
     dataloaders = build_loaders(datasets, args.batch_size)
     dataset_sizes = {phase: len(datasets[phase]) for phase in ('train', 'val')}
 
-    model = resnet18_classifier(num_classes=2, pretrained=True, dropout=s['dropout'])
+    model = CLASSIFIERS[args.arch](num_classes=2, pretrained=True, dropout=s['dropout'])
     criterion = nn.CrossEntropyLoss(label_smoothing=s['label_smoothing'])
     weights_file = f'{model_name}_{s["epochs"]}epoch_AdamW.pt'
     checkpoint_path = model_dir/weights_file
+    trainer_ckpt = checkpoint_path if args.save_best else None
 
     since = time.time()
     losses, accs = {'train': [], 'val': []}, {'train': [], 'val': []}
@@ -215,7 +267,7 @@ def run_training(data_key: str, s: dict, args) -> dict:
         model, criterion, optimizer, scheduler,
         dataloaders=dataloaders, dataset_sizes=dataset_sizes,
         num_epochs=freeze_epochs, device=TORCH_DEVICE,
-        checkpoint_path=checkpoint_path,
+        checkpoint_path=trainer_ckpt,
         early_stopping_patience=None,
         mixup_alpha=s['mixup_alpha'],
         load_best_at_end=False,
@@ -239,11 +291,11 @@ def run_training(data_key: str, s: dict, args) -> dict:
         model, criterion, optimizer, scheduler,
         dataloaders=dataloaders, dataset_sizes=dataset_sizes,
         num_epochs=stage2_epochs, device=TORCH_DEVICE,
-        checkpoint_path=checkpoint_path,
+        checkpoint_path=trainer_ckpt,
         initial_best_loss=best_loss,
-        early_stopping_patience=s['patience'],
+        early_stopping_patience=(s['patience'] if args.early_stopping else None),
         mixup_alpha=s['mixup_alpha'],
-        load_best_at_end=True,
+        load_best_at_end=args.save_best,
     )
     for phase in losses:
         losses[phase] += l2[phase]
@@ -251,7 +303,11 @@ def run_training(data_key: str, s: dict, args) -> dict:
 
     elapsed = time.time() - since
     stopped_epoch = len(losses['train'])
-    print(f'Best-val weights: {checkpoint_path}')
+    if not args.save_best:
+        torch.save(model.state_dict(), checkpoint_path)
+        print(f'Last weights: {checkpoint_path}')
+    else:
+        print(f'Best-val weights: {checkpoint_path}')
 
     plot_history(losses, accs, model_dir/f'{model_name}_loss.png',
                  stage_boundary=stage_boundary)

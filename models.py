@@ -48,18 +48,25 @@ def fc_layers(in_features:int, out_features=1, hidden_layers=[], p=0) -> nn.Modu
         fc_net.append( nn.Linear( in_features, out_features))
     return nn.Sequential(*fc_net)
 
-def resnet18(weights_path:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
+def resnet18(weights_path:str|Path|None = None,
+             pretrained:bool = True,
+             device:torch.device = TORCH_DEVICE) -> nn.Module:
     '''
-    The last FC-layers consist of torch.nn.nn.Linear Module 
+    The last FC-layers consist of torch.nn.nn.Linear Module
+
+    weights_path: optional path to fine-tuned weights (fc = Linear(512, 1));
+                  when None a freshly initialised (optionally ImageNet-
+                  pretrained) model is returned without loading a checkpoint.
     '''
-    
-    model_ft = pt_resnet18()
+    weights = ResNet18_Weights.DEFAULT if pretrained else None
+    model_ft = pt_resnet18(weights=weights)
     num_ftrs = model_ft.fc.in_features
     model_ft.fc = nn.Linear(num_ftrs, 1)
-    
-    model_ft.load_state_dict(
-        torch.load(weights_path, weights_only=True, map_location=torch.device(device))
-    )
+
+    if weights_path is not None:
+        model_ft.load_state_dict(
+            torch.load(weights_path, weights_only=True, map_location=torch.device(device))
+        )
     return model_ft
 
 def resnet18_seq(weights_path:str|Path, device:torch.device = TORCH_DEVICE) -> nn.Module:
